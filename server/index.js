@@ -26,10 +26,16 @@ const fs = require('fs'); // Single declaration at the top
 
 const app = express();
 app.use(cors({
-    origin: ["https://smart-bra-project-website.vercel.app", "http://localhost:3000"],
+    // Include BOTH your custom domain and the project-specific Vercel domain
+    origin: [
+      "https://smart-bra-project-website.vercel.app", 
+      "https://smart-bra-project-website-dareljamesnarvasas-projects.vercel.app",
+      "http://localhost:3000"
+    ],
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true
 }));
+
 app.use(express.json());
 
 
