@@ -9,6 +9,8 @@ const COLORS = {
   border: '#FDECE9'
 };
 
+const API_BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001';
+
 function Register({ setShowRegister }) {
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -20,9 +22,10 @@ function Register({ setShowRegister }) {
   const handleRegister = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:5001/api/register', formData);
+      // 2. Use the dynamic variable here
+      await axios.post(`${API_BASE_URL}/api/register`, formData);
+      
       setShowSuccessModal(true); 
-      // Auto-fade timer for success
       setTimeout(() => {
         setShowSuccessModal(false);
         setShowRegister(false);
