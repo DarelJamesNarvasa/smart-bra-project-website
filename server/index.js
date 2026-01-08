@@ -10,8 +10,14 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs'); // Single declaration at the top
 
+
+
 const app = express();
-app.use(cors());
+app.use(cors({
+    origin: ["https://smart-bra-project-website.vercel.app", "http://localhost:3000"],
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true
+}));
 app.use(express.json());
 
 
@@ -26,7 +32,9 @@ app.use('/uploads', express.static(uploadDir));
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
-mongoose.connect('mongodb://127.0.0.1:27017/smartbra')
+const mongoURI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/smartbra';
+
+mongoose.connect(mongoURI)
     .then(() => console.log("Connected to MongoDB Successfully"))
     .catch(err => console.error("MongoDB Error:", err));
 
@@ -89,7 +97,7 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/login', async (req, res) => {
     const user = await User.findOne({ username: req.body.username });
     if (user && await bcrypt.compare(req.body.password, user.password)) {
-        const token = jwt.sign({ id: user._id }, 'amuma_secret_key', { expiresIn: '1h' });
+        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'amuma_secret_key', { expiresIn: '1h' });
         res.json({ token, user });
     } else { res.status(401).json({ message: "Invalid credentials" }); }
 });
@@ -126,4 +134,5 @@ app.delete('/api/history', async (req, res) => {
   }
 });
 
-server.listen(5001, () => console.log("Server running on http://localhost:5001"));
+const PORT = process.env.PORT || 5001;
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
