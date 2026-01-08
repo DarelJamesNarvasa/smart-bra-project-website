@@ -23,6 +23,8 @@ const fs = require('fs'); // Single declaration at the top
 //   } catch (err) { console.error("Login Error:", err); }
 // };
 
+const helmet = require('helmet');
+app.use(helmet());
 
 const app = express();
 app.use(cors({
@@ -48,13 +50,28 @@ if (!fs.existsSync(uploadDir)) {
 app.use('/uploads', express.static(uploadDir));
 
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+const io = new Server(server, { 
+    cors: { 
+        origin: [
+            "https://smart-bra-project-website.vercel.app", 
+            "https://smart-bra-project-website-dareljamesnarvasas-projects.vercel.app",
+            "http://localhost:3000"
+        ],
+        methods: ["GET", "POST"],
+        credentials: true
+    } 
+});
 
 const mongoURI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/smartbra';
 
 mongoose.connect(mongoURI)
     .then(() => console.log("Connected to MongoDB Successfully"))
     .catch(err => console.error("MongoDB Error:", err));
+
+
+mongoose.connection.on('error', err => console.error("Mongoose connection error:", err));
+mongoose.connection.on('disconnected', () => console.log("Mongoose disconnected"));
+
 
 // --- Schemas (Models must be defined before use) ---
 const User = mongoose.model('User', new mongoose.Schema({
