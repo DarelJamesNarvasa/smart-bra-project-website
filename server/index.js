@@ -10,6 +10,18 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs'); // Single declaration at the top
 
+// Add this at the top of your component
+const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001';
+
+// Then update your login/signup calls:
+const handleLogin = async (e) => {
+  e.preventDefault();
+  try {
+    // Change this line to use the variable
+    const res = await axios.post(`${API_URL}/api/login`, { username, password });
+    // ... rest of your code
+  } catch (err) { console.error("Login Error:", err); }
+};
 
 
 const app = express();
