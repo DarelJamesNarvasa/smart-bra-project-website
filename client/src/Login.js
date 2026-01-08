@@ -9,6 +9,9 @@ const COLORS = {
   border: '#FDECE9'
 };
 
+const API_BASE_URL = process.env.REACT_APP_BACKEND_URL || 'https://your-render-url.onrender.com';
+
+
 function Login({ setToken, setShowRegister }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -17,7 +20,9 @@ function Login({ setToken, setShowRegister }) {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post('http://localhost:5001/api/login', { username, password });
+      // UPDATED: Use the dynamic API_BASE_URL here
+      const res = await axios.post(`${API_BASE_URL}/api/login`, { username, password });
+      
       setToken(res.data.token);
       localStorage.setItem('token', res.data.token);
     } catch (err) {
