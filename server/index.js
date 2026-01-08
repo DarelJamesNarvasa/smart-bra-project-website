@@ -1,0 +1,129 @@
+const express = require('express');
+const http = require('http');
+const mqtt = require('mqtt');
+const { Server } = require('socket.io'); 
+const cors = require('cors');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs'); // Single declaration at the top
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+
+// --- AUTO-CREATE UPLOADS FOLDER ---
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir);
+    console.log("Created missing 'uploads' directory.");
+}
+app.use('/uploads', express.static(uploadDir));
+
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: "*" } });
+
+mongoose.connect('mongodb://127.0.0.1:27017/smartbra')
+    .then(() => console.log("Connected to MongoDB Successfully"))
+    .catch(err => console.error("MongoDB Error:", err));
+
+// --- Schemas (Models must be defined before use) ---
+const User = mongoose.model('User', new mongoose.Schema({
+    username: { type: String, unique: true, required: true },
+    password: { type: String, required: true },
+    name: { type: String, default: "" },
+}));
+
+const HealthData = mongoose.model('HealthData', new mongoose.Schema({
+    heart_rate: Number,
+    resp_rate: Number,
+    lung_status: String,
+    timestamp: { type: Date, default: Date.now }
+}));
+
+// --- MQTT BRIDGE ---
+const client = mqtt.connect('mqtt://broker.emqx.io:1883');
+client.on('connect', () => {
+    console.log("Connected to EMQX Broker");
+    client.subscribe('amuma/smartbra/data');
+});
+
+client.on('message', async (topic, message) => { 
+    try {
+        const data = JSON.parse(message.toString());
+        // Save to Database
+        await new HealthData(data).save(); 
+        // Emit to Dashboard
+        io.emit('smart_bra_data', { ...data, deviceOnline: true }); 
+        console.log("Data saved and sent to UI:", data);
+    } catch (e) { console.log("MQTT Error:", e); }
+});
+
+// --- Multer Config ---
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadDir),
+    filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
+});
+const upload = multer({ storage: storage });
+
+// --- API Routes ---
+app.post('/api/upload', upload.single('profileImage'), (req, res) => {
+    if (!req.file) return res.status(400).json({ error: "No file" });
+    res.json({ filename: req.file.filename });
+});
+
+// --- Register Routes ---
+app.post('/api/register', async (req, res) => {
+    try {
+        const { username, password, name, age, height, weight } = req.body;
+        const hashedPassword = await bcrypt.hash(password, 10);
+        await new User({ username, password: hashedPassword, name}).save();
+        res.json({ message: "User Registered Successfully" });
+    } catch (err) { res.status(500).json({ error: "Registration failed." }); }
+});
+
+// --- Login Routes
+app.post('/api/login', async (req, res) => {
+    const user = await User.findOne({ username: req.body.username });
+    if (user && await bcrypt.compare(req.body.password, user.password)) {
+        const token = jwt.sign({ id: user._id }, 'amuma_secret_key', { expiresIn: '1h' });
+        res.json({ token, user });
+    } else { res.status(401).json({ message: "Invalid credentials" }); }
+});
+    
+// --- Profile Route ---
+app.put('/api/profile', async (req, res) => {
+    try {
+        const { id, name, age, height, weight, profilePicture } = req.body;
+        const updatedUser = await User.findByIdAndUpdate(id, { name, age, height, weight, profilePicture }, { new: true });
+        res.json({ message: "Updated", user: updatedUser });
+    } catch (err) { res.status(500).json({ error: "Update failed" }); }
+});
+
+// --- History Route ---
+app.get('/api/history', async (req, res) => {
+    try {
+        const data = await HealthData.find().sort({ timestamp: -1 }).limit(50);
+        res.json(data);
+    } catch (err) { res.status(500).json({ error: "Failed to fetch history" }); }
+});
+
+// This route is now protected by authenticateToken
+app.delete('/api/history', async (req, res) => {
+  try {
+    // deleteMany({}) without a filter removes every document in the collection
+    const result = await HealthData.deleteMany({}); 
+    
+    res.json({ 
+      message: "All health records cleared successfully", 
+      deletedCount: result.deletedCount 
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete data: " + err.message });
+  }
+});
+
+server.listen(5001, () => console.log("Server running on http://localhost:5001"));
